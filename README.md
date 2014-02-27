@@ -1,4 +1,4 @@
-RTCC
-====
+RTC
+===
 
-Real Time Clock and Calendar for chipKIT PIC32
+chipKIT Real-Time Clock Library. Supports many RTC chips, as well as the internal PIC32 RTCC
