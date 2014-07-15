@@ -164,9 +164,9 @@ void RTCValue::seconds(unsigned char seconds)
     a_time = (a_time & 0xFFFF00FF) | (dec2bcd(seconds)<<8);
 }
 
-void RTCValue::date(unsigned char year, unsigned char month, unsigned char day)
+void RTCValue::date(unsigned short year, unsigned char month, unsigned char day)
 {
-    a_date = (a_date & 0xFF) | (dec2bcd(year)<<24) | (dec2bcd(month)<<16) | (dec2bcd(day)<<8);
+    a_date = (a_date & 0xFF) | (dec2bcd(year % 100)<<24) | (dec2bcd(month)<<16) | (dec2bcd(day)<<8);
 }
 
 void RTCValue::year(unsigned char year)
@@ -240,68 +240,103 @@ unsigned char calendar [] = {31, 28, 31, 30,
 							31, 30, 31, 31,
 							30, 31, 30, 31};
 
+static int  dmsize[] =
+    { -1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+#define isleap(y) (((y) % 4) == 0 && ((y) % 100) != 0 || ((y) % 400) == 0)
+
 /*
  Still UNTESTED: create Unix like long representing the date/time
  */							
 unsigned long RTCValue::getTimestamp()
 {
+    uint32_t ayear = year() + 2000;
+    uint32_t amonth = month();
+    uint32_t tv_sec = 0;
 
-#define YEAR0 1970
-// Belgium but timestamps will be inconsistent: better to store in pseudo UTC!
-//#define TIMEZONE 1
-// Belgium applies DST BUT timestamps will be inconsistent: better to store in pseudo UTC!
-//#define DAYLIGHTSAVING
-   int ayear  = 2000+year();
-   char amonth = month();
-   char aday   = day();
-   char ahour  = hours();
-   char amin   = minutes();
-   char asec   = seconds();
-#ifdef DAYLIGHTSAVING
-   bool dst = amonth >= 3 & amonth <= 10;
-   if (dst) {
-		if (amonth == 3) {
-// (31 - ((((5 × y) div 4) + 4) mod 7)) March at 01:00 UTC
-			char dday = (char)(31 - (((int)((5 * (int)ayear) / 4) + 4) % 7));
-			if (aday < dday) dst = false;
-			else if (aday == dday & ahour < 1) dst = false;
-		} else if (amonth == 10) {
-// (31 - ((((5 × y) div 4) + 1) mod 7)) October at 01:00 UTC		
-			char dday = (31 - (((int)((5 * (int)ayear) / 4) + 1) % 7));
-			if (aday > dday) dst = false;
-			else if (aday == dday & ahour >= 1) dst = false;
-		}
-   }
-#endif
-   if (ayear >= 0 && ayear <= 99 && amonth >= 1 && amonth <= 12 && aday >= 1 && aday <= 31
-       && ahour >= 0 && ahour <= 23 && amin >= 0 && amin <= 59 && asec >= 0 && asec <= 59 ) {
-		unsigned long s=0; // stores how many seconds passed from 1.1.1970, 00:00:00
-		unsigned char localposition=0,foundlocal=0; // checks if the local area is defined in the map
-		static unsigned char k=0;
-		if ((!(ayear%4)) && (amonth>2)) s+=86400; // if the current year is a leap one -> add one day (86400 sec)
-		amonth-- ; // dec the current month (find how many months have passed from the current year)
-		while (amonth) // sum the days from January to the current month
-		{
-			amonth-- ; // dec the month
-			s+=(calendar[amonth])*86400 ; // add the number of days from a month * 86400 sec
-		}
-		// Next, add to s variable: (the number of days from each year (even leap years)) * 86400 sec,
-		// the number of days from the current month
-		// the each hour & minute & second from the current day
-		s +=((((ayear-YEAR0)*365)+((ayear-YEAR0)/4))*(unsigned long)86400)+(aday-1)*(unsigned long)86400 +
-			(ahour*(unsigned long)3600)+(amin*(unsigned long)60)+(unsigned long)asec;
-#ifdef DAYLIGHTSAVING
-		if (dst) s-=3600;// if Summer Time, substract 1 hour
-#endif
-#ifdef TIMEZONE
-		s-=(TIMEZONE*3600) ; // substract the UTC time difference (in seconds:3600 sec/hour)
-#endif
-		return s ; // return a Unix timestamp
-   } else {
-		return 0;
-   }
+    if (isleap(ayear) && amonth > 2)
+        ++tv_sec;
+
+    for (--ayear; ayear >= 1970; --ayear)
+        tv_sec += isleap(ayear) ? 366 : 365;
+
+    while (--amonth)
+        tv_sec += dmsize[amonth];
+
+    tv_sec += day() - 1;
+    tv_sec = 24 * tv_sec + hours();
+    tv_sec = 60 * tv_sec + minutes();
+    tv_sec = 60 * tv_sec + seconds();
+    return tv_sec;
 }
 
-// NOT IMPLEMENTED BUT WOULD BE NICE !
-void RTCValue::setTimestamp(unsigned long unixTime) {
+#define SECS_PER_DAY 86400
+#define SECS_PER_HOUR 3600
+#define SECS_PER_MIN 60
+#define DAYS_PER_WEEK7
+#define EPOCH_YEAR 1970
+#define TM_YEAR_BASE 2000
+#define MONS_PER_YEAR 12
+
+static int  year_lengths[2] = {
+    365, 366
+};
+
+static int  mon_lengths[2][MONS_PER_YEAR] = {
+    { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 },
+    { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 },
+};
+
+void RTCValue::setTimestamp(unsigned long clock) {
+    register long       days;
+    register long       rem;
+    register int        y;
+    register int        yleap;
+    register int *      ip;
+
+    uint32_t tm_hour;
+    uint32_t tm_min;
+    uint32_t tm_sec;
+    uint32_t tm_year;
+    uint32_t tm_yday;
+    uint32_t tm_mon;
+    uint32_t tm_mday;
+
+    days = clock / SECS_PER_DAY;
+    rem = clock % SECS_PER_DAY;
+    while (rem < 0) {
+        rem += SECS_PER_DAY;
+        --days;
+    }
+    while (rem >= SECS_PER_DAY) {
+        rem -= SECS_PER_DAY;
+        ++days;
+    }
+    tm_hour = (int) (rem / SECS_PER_HOUR);
+    rem = rem % SECS_PER_HOUR;
+    tm_min = (int) (rem / SECS_PER_MIN);
+    tm_sec = (int) (rem % SECS_PER_MIN);
+    y = EPOCH_YEAR;
+    if (days >= 0)
+        for ( ; ; ) {
+            yleap = isleap(y);
+            if (days < (long) year_lengths[yleap])
+                break;
+            ++y;
+            days = days - (long) year_lengths[yleap];
+        }
+    else do {
+        --y;
+        yleap = isleap(y);
+        days = days + (long) year_lengths[yleap];
+    } while (days < 0);
+    tm_year = y - TM_YEAR_BASE;
+    tm_yday = (int) days;
+    ip = mon_lengths[yleap];
+    for (tm_mon = 0; days >= (long) ip[tm_mon]; ++(tm_mon))
+        days = days - (long) ip[tm_mon];
+    tm_mday = (int) (days + 1);
+
+    time(tm_hour, tm_min, tm_sec);
+    date(tm_year, tm_mon, tm_mday);
 }

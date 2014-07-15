@@ -45,7 +45,7 @@ class RTCValue {
 		// Show time hh:mm:ss
 		void time(unsigned char * res);
 		// Set date jj/mm/yy
-		void date(unsigned char year, unsigned char month, unsigned char day);
+		void date(unsigned short year, unsigned char month, unsigned char day);
 		// Show date
 		void date(unsigned char * res);
 		
@@ -84,10 +84,8 @@ class RTCValue {
 		// Set date/time from UNSIGNED 32 bits
 		void setInt(uint32_t timeAsInt);
 
-	    // Still UNTESTED: create Unix like long representing the date/time
 		unsigned long getTimestamp();
 		
-		// NOT IMPLEMENTED BUT WOULD BE NICE !
 		void setTimestamp(unsigned long unixTime);
 };
 

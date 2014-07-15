@@ -3,22 +3,23 @@
 
 #include <RTC.h>
 
-// Alarm and Chimes intervals
-#define RTCC_AL_HALF_SECOND  0x0
-#define RTCC_AL_SECOND       0x1
-#define RTCC_AL_10_SECOND    0x2
-#define RTCC_AL_MINUTE       0x3
-#define RTCC_AL_10_MINUTE    0x4
-#define RTCC_AL_HOUR         0x5
-#define RTCC_AL_DAY          0x6
-#define RTCC_AL_WEEK         0x7
-#define RTCC_AL_MONTH        0x8
-#define RTCC_AL_YEAR         0x9
-
-#define RTCC_ALARM           0x0
-#define RTCC_SECONDS         0x1
-
 class RTCC : protected RTC {
+    public:
+        // Alarm and Chimes intervals
+        const static uint8_t AL_HALF_SECOND = 0x00;
+        const static uint8_t AL_SECOND      = 0x01;
+        const static uint8_t AL_10_SECOND   = 0x02;
+        const static uint8_t AL_MINUTE      = 0x03;
+        const static uint8_t AL_10_MINUTE   = 0x04;
+        const static uint8_t AL_HOUR        = 0x05;
+        const static uint8_t AL_DAY         = 0x06;
+        const static uint8_t AL_WEEK        = 0x07;
+        const static uint8_t AL_MONTH       = 0x08;
+        const static uint8_t AL_YEAR        = 0x09;
+
+        const static uint8_t ALARM          = 0x00;
+        const static uint8_t SECONDS        = 0x01;
+
 	public:
 		void begin();
 		RTCValue value();
